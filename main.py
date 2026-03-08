@@ -60,13 +60,14 @@ class StreetTrackerPlugin(Star):
             return
 
         lines = [
-            f"玩家ID: {stats.player_id}",
-            f"玩家名: {stats.player_name}",
-            f"段位: {stats.rank}",
-            f"常用角色: {stats.favorite_character}",
-            f"常用角色段位: {stats.favorite_character_rank}",
-            f"大师分MR: {stats.mr}",
-            f"排位对局场次: {stats.match_count}",
-            f"排位对局时长: {stats.play_time}",
+            "🎮 Street Fighter 6 玩家信息",
+            f"🆔 玩家ID: {stats.player_id}",
+            f"👤 玩家名: {stats.player_name}",
+            f"🏆 段位: {stats.rank}",
+            f"🕹️ 常用角色: {stats.favorite_character}",
+            f"📈 常用角色段位: {stats.favorite_character_rank}",
+            f"💠 大师分MR: {stats.mr}",
+            f"⚔️ 排位对局场次: {stats.match_count}",
+            f"⏱️ 排位对局时长: {stats.play_time}",
         ]
         yield event.plain_result("\n".join(lines))
