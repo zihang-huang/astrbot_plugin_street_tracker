@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-from .sf6_profile import SF6AuthError, SF6ClientError, SF6ParseError, SF6ProfileClient
+from sf6_profile import SF6AuthError, SF6ClientError, SF6ParseError, SF6ProfileClient
 
 
 def parse_args() -> argparse.Namespace:

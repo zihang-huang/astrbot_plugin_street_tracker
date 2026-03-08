@@ -13,6 +13,46 @@ DEFAULT_USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/123.0.0.0 Safari/537.36"
 )
+RANK_LOCALIZATION = {
+    "new challenger": "新手挑战者",
+    "rookie": "新手",
+    "iron": "黑铁",
+    "bronze": "黄铜",
+    "silver": "白银",
+    "gold": "黄金",
+    "platinum": "白金",
+    "diamond": "钻石",
+    "master": "大师",
+    "legend": "传奇",
+}
+CHARACTER_LOCALIZATION = {
+    "ryu": "隆",
+    "ken": "肯",
+    "chunli": "春丽",
+    "jamie": "杰米",
+    "manon": "玛侬",
+    "kimberly": "金伯莉",
+    "marisa": "玛丽莎",
+    "lily": "莉莉",
+    "jp": "JP",
+    "juri": "蛛俐",
+    "dejay": "迪杰",
+    "cammy": "嘉米",
+    "guile": "古烈",
+    "zangief": "桑吉尔夫",
+    "dhalsim": "达尔西姆",
+    "ehonda": "本田",
+    "blanka": "布兰卡",
+    "luke": "卢克",
+    "rashid": "拉希德",
+    "aki": "A.K.I.",
+    "ed": "艾德",
+    "akuma": "豪鬼",
+    "mbison": "维加",
+    "terry": "特瑞",
+    "mai": "不知火舞",
+    "elena": "艾琳娜",
+}
 
 
 class SF6ClientError(Exception):
@@ -67,7 +107,7 @@ class SF6ProfileClient:
     async def _fetch_profile_html(self, player_id: str) -> str:
         headers = {
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "accept-language": "en-US,en;q=0.9,zh-CN;q=0.8,ja;q=0.7",
+            "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
             "cache-control": "no-cache",
             "cookie": self.cookie,
             "pragma": "no-cache",
@@ -148,7 +188,9 @@ class SF6ProfileClient:
         if all(v == "N/A" for v in extracted.values()):
             raise SF6ParseError("unable to extract stats from profile page")
 
-        return PlayerProfileStats(player_id=player_id, **extracted)
+        return self._localize_stats(
+            PlayerProfileStats(player_id=player_id, **extracted)
+        )
 
     def _extract_stats_from_next_data(
         self, player_id: str, html: str
@@ -235,17 +277,21 @@ class SF6ProfileClient:
             if isinstance(value, (int, float)):
                 match_count += int(value)
 
-        return PlayerProfileStats(
-            player_id=player_id,
-            rank=rank,
-            favorite_character=favorite_character,
-            favorite_character_rank=favorite_character_rank,
-            mr=mr,
-            play_time=self._normalize_value(
-                total_play_time if total_play_time > 0 else None
-            ),
-            match_count=self._normalize_value(match_count if match_count > 0 else None),
-            room_time=self._normalize_value(room_time),
+        return self._localize_stats(
+            PlayerProfileStats(
+                player_id=player_id,
+                rank=rank,
+                favorite_character=favorite_character,
+                favorite_character_rank=favorite_character_rank,
+                mr=mr,
+                play_time=self._normalize_value(
+                    total_play_time if total_play_time > 0 else None
+                ),
+                match_count=self._normalize_value(
+                    match_count if match_count > 0 else None
+                ),
+                room_time=self._normalize_value(room_time),
+            )
         )
 
     def _extract_json_payloads(self, html: str) -> list[Any]:
@@ -345,6 +391,38 @@ class SF6ProfileClient:
 
     def _normalize_key(self, key: str) -> str:
         return re.sub(r"[^a-z0-9]", "", key.lower())
+
+    def _localize_stats(self, stats: PlayerProfileStats) -> PlayerProfileStats:
+        return PlayerProfileStats(
+            player_id=stats.player_id,
+            rank=self._localize_rank(stats.rank),
+            favorite_character=self._localize_character(stats.favorite_character),
+            favorite_character_rank=self._localize_rank(stats.favorite_character_rank),
+            mr=stats.mr,
+            play_time=stats.play_time,
+            match_count=stats.match_count,
+            room_time=stats.room_time,
+        )
+
+    def _localize_rank(self, rank_text: str) -> str:
+        if rank_text == "N/A":
+            return rank_text
+
+        localized = rank_text
+        for source, target in sorted(
+            RANK_LOCALIZATION.items(), key=lambda item: len(item[0]), reverse=True
+        ):
+            localized = re.sub(
+                rf"\b{re.escape(source)}\b", target, localized, flags=re.IGNORECASE
+            )
+        return localized
+
+    def _localize_character(self, character_name: str) -> str:
+        if character_name == "N/A":
+            return character_name
+
+        key = self._normalize_key(character_name)
+        return CHARACTER_LOCALIZATION.get(key, character_name)
 
     def _normalize_value(self, value: Any | None) -> str:
         if value is None:
