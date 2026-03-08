@@ -2,7 +2,7 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
-from sf6_profile import SF6AuthError, SF6ClientError, SF6ParseError, SF6ProfileClient
+from .sf6_profile import SF6AuthError, SF6ClientError, SF6ParseError, SF6ProfileClient
 
 
 @register(
