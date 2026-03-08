@@ -16,13 +16,38 @@ class StreetTrackerPlugin(Star):
         super().__init__(context)
         self.config = config
 
+    @staticmethod
+    def _binding_key(sender_id: str) -> str:
+        return f"binding:{sender_id}"
+
+    @filter.command("绑定")
+    async def bind_profile(self, event: AstrMessageEvent, player_id: str = ""):
+        """绑定当前用户与 Street Fighter 6 玩家 ID。"""
+        player_id = player_id.strip()
+        if not player_id:
+            yield event.plain_result("用法: /绑定 <player_id>")
+            return
+
+        sender_id = str(event.get_sender_id()).strip()
+        await self.put_kv_data(self._binding_key(sender_id), player_id)
+        yield event.plain_result(
+            f"绑定成功，你可以直接使用 /查询 查看玩家 {player_id} 的信息。"
+        )
+
     @filter.command("查询")
     async def query_profile(self, event: AstrMessageEvent, player_id: str = ""):
         """根据玩家 ID 查询 Street Fighter 6 档案数据。"""
         player_id = player_id.strip()
         if not player_id:
-            yield event.plain_result("用法: /查询 <player_id>")
-            return
+            sender_id = str(event.get_sender_id()).strip()
+            player_id = str(
+                await self.get_kv_data(self._binding_key(sender_id), "")
+            ).strip()
+            if not player_id:
+                yield event.plain_result(
+                    "用法: /查询 <player_id> 或先使用 /绑定 <player_id>"
+                )
+                return
 
         cookie = str(self.config.get("sf6_cookie", "")).strip()
         if not cookie:
