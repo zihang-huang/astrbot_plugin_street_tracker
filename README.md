@@ -1,14 +1,36 @@
-# astrbot-plugin-helloworld
+# astrbot_plugin_street_tracker
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+Street Fighter 6 Buckler profile lookup plugin for AstrBot.
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+## Features
 
-# Supports
+- `/查询 <player_id>`: fetch player profile stats by player ID
+- Uses authenticated HTTP requests with a global Cookie
+- Extracts rank, favorite character, favorite character rank, MR, play time, match count, and room time
 
-- [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+## Configuration
+
+Configure plugin settings in AstrBot WebUI (from `_conf_schema.json`):
+
+- `sf6_cookie`: required, full Cookie header string from a logged-in `streetfighter.com` browser session
+- `user_agent`: optional custom User-Agent
+- `request_timeout_seconds`: request timeout in seconds
+
+## Utility Script
+
+You can also run standalone lookup locally:
+
+```bash
+python get_player_profile.py <player_id> --cookie "<your_cookie>"
+```
+
+Or via environment variable:
+
+```bash
+SF6_COOKIE="<your_cookie>" python get_player_profile.py <player_id> --json
+```
+
+## Notes
+
+- Cookie is sensitive data. Do not expose it in logs or screenshots.
+- If lookup fails with auth errors, refresh Cookie from browser and update config.

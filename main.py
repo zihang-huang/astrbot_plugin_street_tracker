@@ -1,24 +1,72 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api import AstrBotConfig, logger
+from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
+from sf6_profile import SF6AuthError, SF6ClientError, SF6ParseError, SF6ProfileClient
+
+
+@register(
+    "astrbot_plugin_street_tracker",
+    "二猫姥爷",
+    "Street Fighter 6 玩家信息查询",
+    "1.1.0",
+)
+class StreetTrackerPlugin(Star):
+    def __init__(self, context: Context, config: AstrBotConfig) -> None:
         super().__init__(context)
+        self.config = config
 
-    async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+    @filter.command("查询")
+    async def query_profile(self, event: AstrMessageEvent, player_id: str = ""):
+        """根据玩家 ID 查询 Street Fighter 6 档案数据。"""
+        player_id = player_id.strip()
+        if not player_id:
+            yield event.plain_result("用法: /查询 <player_id>")
+            return
 
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
+        cookie = str(self.config.get("sf6_cookie", "")).strip()
+        if not cookie:
+            yield event.plain_result(
+                "未配置 SF6 Cookie，请在插件配置中填写 sf6_cookie。"
+            )
+            return
 
-    async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+        timeout_seconds = int(self.config.get("request_timeout_seconds", 20) or 20)
+        user_agent = str(self.config.get("user_agent", "")).strip() or None
+
+        client = SF6ProfileClient(
+            cookie=cookie,
+            user_agent=user_agent,
+            timeout_seconds=timeout_seconds,
+        )
+
+        try:
+            stats = await client.fetch_player_profile_stats(player_id)
+        except SF6AuthError:
+            yield event.plain_result(
+                "Cookie 无效或已过期，请更新插件配置中的 sf6_cookie。"
+            )
+            return
+        except SF6ParseError:
+            yield event.plain_result("已拿到页面，但暂时无法解析该玩家数据。")
+            return
+        except SF6ClientError as exc:
+            logger.warning(f"SF6 query failed for player {player_id}: {exc}")
+            yield event.plain_result(f"查询失败: {exc}")
+            return
+        except Exception:
+            logger.exception("Unexpected error while querying SF6 profile")
+            yield event.plain_result("查询失败: 发生未知错误。")
+            return
+
+        lines = [
+            f"玩家ID: {stats.player_id}",
+            f"段位: {stats.rank}",
+            f"常用角色: {stats.favorite_character}",
+            f"常用角色段位: {stats.favorite_character_rank}",
+            f"MR: {stats.mr}",
+            f"游玩时长: {stats.play_time}",
+            f"对战场次: {stats.match_count}",
+            f"房间时长: {stats.room_time}",
+        ]
+        yield event.plain_result("\n".join(lines))

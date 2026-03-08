@@ -1,0 +1,20 @@
+{
+  "sf6_cookie": {
+    "type": "text",
+    "description": "Street Fighter 6 Buckler cookie string used for authenticated profile scraping.",
+    "hint": "Paste full browser Cookie header value from streetfighter.com after login.",
+    "obvious_hint": true,
+    "default": ""
+  },
+  "user_agent": {
+    "type": "string",
+    "description": "Optional custom User-Agent header.",
+    "hint": "Leave empty to use built-in browser-like User-Agent.",
+    "default": ""
+  },
+  "request_timeout_seconds": {
+    "type": "int",
+    "description": "HTTP request timeout in seconds.",
+    "default": 20
+  }
+}
