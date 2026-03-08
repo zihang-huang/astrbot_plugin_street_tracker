@@ -61,6 +61,7 @@ class StreetTrackerPlugin(Star):
 
         lines = [
             f"玩家ID: {stats.player_id}",
+            f"玩家名: {stats.player_name}",
             f"段位: {stats.rank}",
             f"常用角色: {stats.favorite_character}",
             f"常用角色段位: {stats.favorite_character_rank}",

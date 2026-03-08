@@ -59,6 +59,7 @@ class SF6ParseError(SF6ClientError):
 @dataclass(slots=True)
 class PlayerProfileStats:
     player_id: str
+    player_name: str
     rank: str
     favorite_character: str
     favorite_character_rank: str
@@ -137,6 +138,12 @@ class SF6ProfileClient:
         payloads = self._extract_json_payloads(html)
 
         key_aliases = {
+            "player_name": [
+                "fighter_id",
+                "fighter_name",
+                "player_name",
+                "nickname",
+            ],
             "rank": [
                 "league_rank",
                 "rank",
@@ -205,6 +212,17 @@ class SF6ProfileClient:
             fighter_banner_info.get("favorite_character_name")
         )
 
+        personal_info = fighter_banner_info.get("personal_info", {})
+        if not isinstance(personal_info, dict):
+            personal_info = {}
+
+        main_circle = fighter_banner_info.get("main_circle", {})
+        if not isinstance(main_circle, dict):
+            main_circle = {}
+        main_circle_leader = main_circle.get("leader", {})
+        if not isinstance(main_circle_leader, dict):
+            main_circle_leader = {}
+
         favorite_league_info = fighter_banner_info.get(
             "favorite_character_league_info", {}
         )
@@ -262,6 +280,14 @@ class SF6ProfileClient:
 
         stats = PlayerProfileStats(
             player_id=player_id,
+            player_name=self._normalize_value(
+                personal_info.get("fighter_id")
+                or main_circle_leader.get("fighter_id")
+                or fighter_banner_info.get("fighter_id")
+                or fighter_banner_info.get("fighter_name")
+                or fighter_banner_info.get("player_name")
+                or fighter_banner_info.get("nickname")
+            ),
             rank=rank,
             favorite_character=favorite_character,
             favorite_character_rank=favorite_character_rank,
@@ -274,6 +300,7 @@ class SF6ProfileClient:
         if all(
             value == "N/A"
             for value in (
+                stats.player_name,
                 stats.rank,
                 stats.favorite_character,
                 stats.favorite_character_rank,
@@ -386,6 +413,9 @@ class SF6ProfileClient:
 
     def _extract_by_text_pattern(self, field_name: str, html: str) -> Any | None:
         patterns: dict[str, list[str]] = {
+            "player_name": [
+                r"(?:Player\s*Name|Fighter\s*Name)\s*[:：]?\s*([^<\n]+)",
+            ],
             "mr": [
                 r"(?:Master\s*Rate|Master\s*Rating|MR)\s*[:：]?\s*([\d,.]+)",
             ],
@@ -421,6 +451,7 @@ class SF6ProfileClient:
     def _localize_stats(self, stats: PlayerProfileStats) -> PlayerProfileStats:
         return PlayerProfileStats(
             player_id=stats.player_id,
+            player_name=stats.player_name,
             rank=stats.rank,
             favorite_character=self._localize_character(stats.favorite_character),
             favorite_character_rank=stats.favorite_character_rank,
