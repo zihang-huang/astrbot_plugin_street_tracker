@@ -64,9 +64,8 @@ class StreetTrackerPlugin(Star):
             f"段位: {stats.rank}",
             f"常用角色: {stats.favorite_character}",
             f"常用角色段位: {stats.favorite_character_rank}",
-            f"MR: {stats.mr}",
-            f"游玩时长: {stats.play_time}",
-            f"对战场次: {stats.match_count}",
-            f"房间时长: {stats.room_time}",
+            f"大师分MR: {stats.mr}",
+            f"排位对局场次: {stats.match_count}",
+            f"排位对局时长: {stats.play_time}",
         ]
         yield event.plain_result("\n".join(lines))

@@ -235,32 +235,30 @@ class SF6ProfileClient:
             base_info = {}
         content_play_time_list = base_info.get("content_play_time_list", [])
 
-        total_play_time = 0
-        room_time = None
+        ranked_play_time_seconds = None
         if isinstance(content_play_time_list, list):
             for item in content_play_time_list:
                 if not isinstance(item, dict):
                     continue
                 play_time_value = item.get("play_time")
-                if isinstance(play_time_value, (int, float)):
-                    total_play_time += int(play_time_value)
-                if item.get("content_type") == 4:
-                    room_time = play_time_value
+                if not isinstance(play_time_value, (int, float)):
+                    continue
+
+                content_type = item.get("content_type")
+                content_type_name = (
+                    str(item.get("content_type_name", "")).strip().lower()
+                )
+                if content_type == 2 or content_type_name == "ranked matches":
+                    ranked_play_time_seconds = int(play_time_value)
+                    break
 
         battle_stats = play.get("battle_stats", {})
         if not isinstance(battle_stats, dict):
             battle_stats = {}
 
-        match_count = 0
-        for key in (
-            "rank_match_play_count",
-            "casual_match_play_count",
-            "custom_room_match_play_count",
-            "battle_hub_match_play_count",
-        ):
-            value = battle_stats.get(key)
-            if isinstance(value, (int, float)):
-                match_count += int(value)
+        ranked_match_count = battle_stats.get("rank_match_play_count")
+        if not isinstance(ranked_match_count, (int, float)):
+            ranked_match_count = None
 
         stats = PlayerProfileStats(
             player_id=player_id,
@@ -268,11 +266,9 @@ class SF6ProfileClient:
             favorite_character=favorite_character,
             favorite_character_rank=favorite_character_rank,
             mr=mr,
-            play_time=self._normalize_value(
-                total_play_time if total_play_time > 0 else None
-            ),
-            match_count=self._normalize_value(match_count if match_count > 0 else None),
-            room_time=self._normalize_value(room_time),
+            play_time=self._format_seconds_as_hours(ranked_play_time_seconds),
+            match_count=self._normalize_value(ranked_match_count),
+            room_time="N/A",
         )
 
         if all(
@@ -448,6 +444,19 @@ class SF6ProfileClient:
             return "N/A"
         text = str(value).strip()
         return text if text else "N/A"
+
+    def _format_seconds_as_hours(self, seconds: Any | None) -> str:
+        if not isinstance(seconds, (int, float)):
+            return "N/A"
+
+        total_seconds = int(seconds)
+        if total_seconds < 0:
+            return "N/A"
+
+        total_minutes = total_seconds // 60
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        return f"{hours}:{minutes:02d} 小时"
 
     def _is_primitive(self, value: Any) -> bool:
         return isinstance(value, (str, int, float, bool))
