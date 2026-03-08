@@ -1,152 +1,160 @@
 # AGENTS.md
 
-Operational guide for agentic coding tools in this repository.
+Operational guide for agentic coding tools working in this repository.
 
-## 1) Project Snapshot
-- Project type: AstrBot plugin (Python).
-- Current codebase is a template-like scaffold with `main.py` + `metadata.yaml`.
-- Intended feature direction: Street Fighter 6 player profile lookup.
-- Product goals currently tracked:
-  - bind QQ account -> SF6 player ID
-  - `/查询` for bound profile
-  - `/查询 <playerid>` for target profile
-  - include rank, favorite character, favorite character rank, MR, play time, match count, room time
+## 1) Project Overview
+- Project type: AstrBot plugin written in Python.
+- Main purpose: query Street Fighter 6 player profile stats from Buckler profile pages.
+- Current plugin command wiring is in `main.py`.
+- Core scraping/parsing logic is in `sf6_profile.py`.
+- Local CLI helper is in `get_player_profile.py`.
+- Reference HTML sample for parser work: `example.html`.
 
-## 2) Source of Truth
-- Local plugin docs in `sdk-docs/` are authoritative for AstrBot behavior.
-- Start with:
+## 2) Current Feature Surface
+- Query flow currently supports `/查询 <player_id>`.
+- Expected output fields:
+  - player ID
+  - rank
+  - favorite character
+  - favorite character rank
+  - MR
+  - play time
+  - match count
+  - room time
+- Plugin config currently expects `sf6_cookie` and optional timeout/user-agent overrides.
+
+## 3) Source of Truth
+- AstrBot behavior and plugin APIs are defined by docs under `sdk-docs/`.
+- Read these first when changing plugin behavior:
   - `sdk-docs/star/plugin-new.md`
   - `sdk-docs/star/guides/simple.md`
   - `sdk-docs/star/guides/listen-message-event.md`
   - `sdk-docs/star/guides/storage.md`
   - `sdk-docs/star/guides/plugin-config.md`
-- If generic Python guidance conflicts with AstrBot specifics, follow `sdk-docs/`.
+- If generic Python advice conflicts with AstrBot docs, follow `sdk-docs/`.
 
-## 3) Repository Layout
-- `main.py`: plugin entrypoint; plugin class file should stay named `main.py`.
-- `metadata.yaml`: plugin metadata and release identity.
-- `sdk-docs/`: development docs mirror.
-- Not present right now: `tests/`, `requirements.txt`, `pyproject.toml`, CI workflow files.
+## 4) Repository Layout
+- `main.py`: AstrBot entrypoint and command handlers.
+- `sf6_profile.py`: HTTP client + HTML/JSON extraction and normalization.
+- `get_player_profile.py`: standalone CLI for manual profile fetching.
+- `metadata.yaml`: plugin metadata/version.
+- `example.html`: captured profile HTML sample for parser validation.
+- `sdk-docs/`: local docs mirror.
+- There is currently no committed `tests/` directory.
 
-## 4) Build / Lint / Test Commands
-There is no enforced task runner in this repo today. Use these defaults.
+## 5) Build, Lint, and Test Commands
+No enforced task runner exists yet; use commands below.
 
 ### Environment setup
 - `python -m venv .venv`
 - `source .venv/bin/activate`
-- `pip install -r requirements.txt` (only if file exists)
-- `pip install ruff pytest` (dev tools, if needed)
+- `pip install -r requirements.txt` (only when file exists)
+- `pip install ruff pytest httpx`
 
-### Lint and formatting
+### Formatting and lint
 - `ruff format .`
 - `ruff check .`
 - Optional autofix: `ruff check . --fix`
 
 ### Tests
-- Full test run: `pytest -q`
-- Single test file: `pytest tests/test_xxx.py -q`
-- Single test function: `pytest tests/test_xxx.py::test_case_name -q`
-- Single class test: `pytest tests/test_xxx.py::TestClass::test_case_name -q`
+- Full suite: `pytest -q`
+- Single file: `pytest tests/test_parser.py -q`
+- Single test function: `pytest tests/test_parser.py::test_extract_next_data -q`
+- Single test method in class: `pytest tests/test_service_client.py::TestSF6ProfileClient::test_auth_error -q`
+- Run by keyword: `pytest -q -k next_data`
 
-### Current template sanity checks
+### Sanity checks (when tests are absent)
 - Syntax check: `python -m compileall .`
-- Runtime verification: reload plugin in AstrBot WebUI and run command manually.
+- Manual CLI check:
+  - `python get_player_profile.py <player_id> --cookie "$SF6_COOKIE" --json`
+- Manual plugin check:
+  - reload plugin in AstrBot WebUI, then run the query command.
 
-## 5) AstrBot Development Rules
+## 6) AstrBot Development Rules
 - Plugin class must inherit from `Star`.
-- Register class with `@register(...)`.
-- Event handlers live inside plugin class methods.
-- Handler signature should start with `self, event`.
+- Register plugin via `@register(...)` in `main.py`.
+- Keep handler signatures as `self, event, ...` with `AstrMessageEvent` typing.
 - Use decorators from `astrbot.api.event.filter` for commands/listeners.
-- Prefer async handlers and async IO libraries.
-- Do not use `requests`; use `aiohttp` or `httpx`.
-- Use `from astrbot.api import logger` for logging.
-- For persistence:
-  - small state: `get_kv_data` / `put_kv_data` / `delete_kv_data`
-  - larger files: `data/plugin_data/{plugin_name}/`
-- Keep persistent data out of plugin source directories.
+- Prefer async handlers and async IO.
+- Do not use `requests`; use `httpx` or `aiohttp`.
+- Use `from astrbot.api import logger` for logs.
+- Persist small key-value state with AstrBot storage APIs.
+- Store large artifacts under `data/plugin_data/{plugin_name}/`, not source dirs.
 
-## 6) Code Style Guidelines
+## 7) Parser and HTTP Guidance (SF6)
+- Prefer extracting `__NEXT_DATA__` JSON first; use regex/text fallback only when needed.
+- Use `example.html` to validate extraction rules before changing parsing behavior.
+- Keep parsing tolerant to missing keys and nested structure shifts.
+- Normalize missing/empty values to a stable sentinel (currently `"N/A"`).
+- Validate response status codes and anti-bot/error pages before parsing HTML.
+- Always set request timeout and explicit headers in network calls.
+
+## 8) Code Style Guidelines
 
 ### Imports
-- Order imports: stdlib, third-party, local.
-- Prefer explicit imports over wildcard imports.
-- Remove unused imports quickly.
-- Keep import statements stable and readable.
+- Order import groups as: standard library, third-party, local modules.
+- Keep one import per logical unit; avoid wildcard imports.
+- Remove dead imports promptly.
 
 ### Formatting
-- Follow PEP 8 and run `ruff format`.
-- Use 4-space indentation, no tabs.
-- Keep handlers short and focused.
-- Use concise docstrings where behavior is non-obvious.
-- Avoid comments that restate obvious lines.
+- Follow PEP 8 and rely on `ruff format` for consistency.
+- Use 4-space indentation and keep lines readable.
+- Keep handlers thin; move business logic into helper modules/classes.
+- Add docstrings only for non-obvious public behavior.
 
 ### Types
-- Add type hints for public methods and helpers.
-- Type handler parameters as `AstrMessageEvent`.
-- Add return type hints to non-trivial utility functions.
-- Prefer concrete typing (`dict[str, str]`, `list[int]`) over broad `Any`.
+- Add type hints to public functions, methods, and return values.
+- Prefer concrete types: `dict[str, str]`, `list[Any]`, `PlayerProfileStats`.
+- Avoid broad `Any` unless interacting with unknown JSON payloads.
 
 ### Naming
 - Classes: `PascalCase`.
-- Variables/functions/methods: `snake_case`.
+- Functions/methods/variables: `snake_case`.
 - Constants: `UPPER_SNAKE_CASE`.
-- Command names should be user-friendly and stable.
-- File/module names should be lowercase with underscores.
+- Keep command names stable and user-oriented.
+- File names should remain lowercase with underscores.
 
 ### Error handling
-- Do not allow unhandled exceptions to break plugin flow.
-- Catch specific exception types where possible.
-- If catching broad exceptions, log full context.
-- Provide user-friendly failure responses in handlers.
-- Validate all external API response fields before use.
-- Add request timeouts and retry/backoff when talking to remote services.
+- Never let unhandled exceptions break command flow.
+- Raise/propagate domain-specific exceptions (`SF6AuthError`, `SF6ParseError`, etc.).
+- Catch specific exceptions first; keep broad `except Exception` as a last guard.
+- Return user-friendly failure messages from handlers.
+- Log internal details for debugging, but avoid leaking sensitive cookie values.
 
 ### Async and concurrency
 - Use async-native libraries only.
-- Avoid blocking operations in handlers.
-- Use `asyncio.gather` carefully with explicit error handling.
-- Protect shared mutable state or avoid it.
+- Avoid blocking calls inside async handlers.
+- If adding concurrency (`asyncio.gather`), handle partial failures explicitly.
 
-### Architecture
-- Keep `main.py` focused on command wiring.
-- Move business logic, API clients, and parsers into dedicated modules as complexity grows.
-- Keep handlers thin: parse input -> call service -> format output.
-- Isolate SF6 provider logic from presentation logic.
-
-## 7) Metadata and Configuration
-- Keep `metadata.yaml` accurate on every release.
-- Keep plugin `name` prefixed with `astrbot_plugin_`.
-- Update `version` when behavior changes.
-- Optional metadata fields to consider:
-  - `display_name`
-  - `support_platforms`
-  - `astrbot_version`
-- Add `_conf_schema.json` for user-configurable behavior.
-- Read plugin config via `AstrBotConfig` in `__init__` when config is used.
-
-## 8) Testing Expectations for New Work
-- Add unit tests for parsing/formatting logic.
-- Add regression tests for bug fixes.
-- Mock API/network calls to keep tests deterministic.
-- Suggested structure:
-  - `tests/test_commands.py`
+## 9) Testing Expectations for New Work
+- Add tests for parsing logic whenever parser rules change.
+- Add regression tests for any bug fixes.
+- Mock HTTP requests for deterministic tests.
+- Suggested future test files:
   - `tests/test_parser.py`
   - `tests/test_service_client.py`
+  - `tests/test_commands.py`
 
-## 9) Git and Change Hygiene
-- Keep changes scoped and reviewable.
-- Do not revert unrelated local changes.
-- Avoid history rewriting unless explicitly requested.
-- Mention behavioral impact in commit/PR text.
+## 10) Metadata and Versioning
+- Keep `metadata.yaml` aligned with behavior changes.
+- Keep plugin `name` prefixed with `astrbot_plugin_`.
+- Bump version when user-visible behavior changes.
+- Keep `display_name`, `desc`, `author`, and `repo` accurate.
 
-## 10) Cursor/Copilot Rule Check
-- Checked `.cursor/rules/`: not present.
-- Checked `.cursorrules`: not present.
-- Checked `.github/copilot-instructions.md`: not present.
-- This file is therefore the primary in-repo guidance for coding agents.
+## 11) Git and Change Hygiene
+- Keep edits scoped to the requested task.
+- Do not revert unrelated working tree changes.
+- Avoid destructive git operations unless explicitly requested.
+- In commit/PR text, explain behavior impact, not only file diffs.
 
-## 11) Practical Defaults
-- Before finishing code changes: `ruff format . && ruff check .`.
-- When no tests exist yet: run `python -m compileall .`.
-- Once tests exist: always include single-test command usage in validation notes.
+## 12) Cursor/Copilot Rules Check
+- `.cursor/rules/`: not present.
+- `.cursorrules`: not present.
+- `.github/copilot-instructions.md`: not present.
+- This `AGENTS.md` is the active instruction file for coding agents.
+
+## 13) Practical Defaults for Agents
+- Before finishing code edits: run `ruff format . && ruff check .`.
+- If tests exist, run targeted tests first, then full `pytest -q` when feasible.
+- If tests do not exist, run `python -m compileall .` and at least one manual verification path.
+- For parser updates, verify against `example.html` and one live-response sample if available.
