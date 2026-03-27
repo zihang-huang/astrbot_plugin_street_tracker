@@ -73,6 +73,8 @@ async def run() -> int:
         print(f"favorite_character: {stats.favorite_character}")
         print(f"favorite_character_rank: {stats.favorite_character_rank}")
         print(f"mr: {stats.mr}")
+        print(f"total_play_time: {stats.total_play_time}")
+        print(f"casual_play_time: {stats.casual_play_time}")
         print(f"play_time: {stats.play_time}")
         print(f"match_count: {stats.match_count}")
         print(f"room_time: {stats.room_time}")

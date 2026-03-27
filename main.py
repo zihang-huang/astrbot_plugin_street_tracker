@@ -9,7 +9,7 @@ from .sf6_profile import SF6AuthError, SF6ClientError, SF6ParseError, SF6Profile
     "astrbot_plugin_street_tracker",
     "二猫姥爷",
     "Street Fighter 6 玩家信息查询",
-    "1.1.0",
+    "1.4.0",
 )
 class StreetTrackerPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
@@ -92,7 +92,10 @@ class StreetTrackerPlugin(Star):
             f"🕹️ 常用角色: {stats.favorite_character}",
             f"📈 常用角色段位: {stats.favorite_character_rank}",
             f"💠 大师分MR: {stats.mr}",
+            f"⌛ 总时长: {stats.total_play_time}",
+            f"🎯 排位赛时长: {stats.play_time}",
+            f"😎 休闲赛时长: {stats.casual_play_time}",
+            f"🏠 比赛间时长: {stats.room_time}",
             f"⚔️ 排位对局场次: {stats.match_count}",
-            f"⏱️ 排位对局时长: {stats.play_time}",
         ]
         yield event.plain_result("\n".join(lines))

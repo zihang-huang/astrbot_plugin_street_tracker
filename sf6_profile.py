@@ -64,6 +64,8 @@ class PlayerProfileStats:
     favorite_character: str
     favorite_character_rank: str
     mr: str
+    total_play_time: str
+    casual_play_time: str
     play_time: str
     match_count: str
     room_time: str
@@ -164,6 +166,8 @@ class SF6ProfileClient:
                 "character_league_rank",
             ],
             "mr": ["master_rate", "master_rating", "mr"],
+            "total_play_time": ["total_play_time", "total_playtime"],
+            "casual_play_time": ["casual_play_time", "casual_playtime"],
             "play_time": ["play_time", "playtime"],
             "match_count": [
                 "match_count",
@@ -253,7 +257,10 @@ class SF6ProfileClient:
             base_info = {}
         content_play_time_list = base_info.get("content_play_time_list", [])
 
+        total_play_time_seconds = None
         ranked_play_time_seconds = None
+        casual_play_time_seconds = None
+        room_play_time_seconds = None
         if isinstance(content_play_time_list, list):
             for item in content_play_time_list:
                 if not isinstance(item, dict):
@@ -266,9 +273,18 @@ class SF6ProfileClient:
                 content_type_name = (
                     str(item.get("content_type_name", "")).strip().lower()
                 )
+                play_time_seconds = int(play_time_value)
+                total_play_time_seconds = (
+                    play_time_seconds
+                    if total_play_time_seconds is None
+                    else total_play_time_seconds + play_time_seconds
+                )
                 if content_type == 2 or content_type_name == "ranked matches":
-                    ranked_play_time_seconds = int(play_time_value)
-                    break
+                    ranked_play_time_seconds = play_time_seconds
+                elif content_type == 3 or content_type_name == "casual matches":
+                    casual_play_time_seconds = play_time_seconds
+                elif content_type == 4 or content_type_name == "custom room matches":
+                    room_play_time_seconds = play_time_seconds
 
         battle_stats = play.get("battle_stats", {})
         if not isinstance(battle_stats, dict):
@@ -292,9 +308,11 @@ class SF6ProfileClient:
             favorite_character=favorite_character,
             favorite_character_rank=favorite_character_rank,
             mr=mr,
+            total_play_time=self._format_seconds_as_hours(total_play_time_seconds),
+            casual_play_time=self._format_seconds_as_hours(casual_play_time_seconds),
             play_time=self._format_seconds_as_hours(ranked_play_time_seconds),
             match_count=self._normalize_value(ranked_match_count),
-            room_time="N/A",
+            room_time=self._format_seconds_as_hours(room_play_time_seconds),
         )
 
         if all(
@@ -305,6 +323,8 @@ class SF6ProfileClient:
                 stats.favorite_character,
                 stats.favorite_character_rank,
                 stats.mr,
+                stats.total_play_time,
+                stats.casual_play_time,
                 stats.play_time,
                 stats.match_count,
                 stats.room_time,
@@ -422,6 +442,12 @@ class SF6ProfileClient:
             "match_count": [
                 r"(?:Match\s*Count|Total\s*Matches|Battles?)\s*[:：]?\s*([\d,]+)",
             ],
+            "total_play_time": [
+                r"(?:Total\s*Play\s*Time)\s*[:：]?\s*([^<\n]+)",
+            ],
+            "casual_play_time": [
+                r"(?:Casual\s*Play\s*Time|Casual\s*Matches\s*Play\s*Time)\s*[:：]?\s*([^<\n]+)",
+            ],
             "play_time": [
                 r"(?:Play\s*Time)\s*[:：]?\s*([^<\n]+)",
             ],
@@ -456,6 +482,8 @@ class SF6ProfileClient:
             favorite_character=self._localize_character(stats.favorite_character),
             favorite_character_rank=stats.favorite_character_rank,
             mr=stats.mr,
+            total_play_time=stats.total_play_time,
+            casual_play_time=stats.casual_play_time,
             play_time=stats.play_time,
             match_count=stats.match_count,
             room_time=stats.room_time,
