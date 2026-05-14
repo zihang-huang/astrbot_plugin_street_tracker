@@ -1,160 +1,104 @@
 # AGENTS.md
 
-Operational guide for agentic coding tools working in this repository.
+本文件面向后续在该仓库中工作的自动化编码工具，说明项目边界、常用命令和维护约定。
 
-## 1) Project Overview
-- Project type: AstrBot plugin written in Python.
-- Main purpose: query Street Fighter 6 player profile stats from Buckler profile pages.
-- Current plugin command wiring is in `main.py`.
-- Core scraping/parsing logic is in `sf6_profile.py`.
-- Local CLI helper is in `get_player_profile.py`.
-- Reference HTML sample for parser work: `example.html`.
+## 项目概览
 
-## 2) Current Feature Surface
-- Query flow currently supports `/查询 <player_id>`.
-- Expected output fields:
-  - player ID
-  - rank
-  - favorite character
-  - favorite character rank
-  - MR
-  - play time
-  - match count
-  - room time
-- Plugin config currently expects `sf6_cookie` and optional timeout/user-agent overrides.
+- 项目类型：AstrBot 插件，Python 编写。
+- 插件用途：查询《Street Fighter 6》Buckler 玩家主页中的玩家档案和对战统计。
+- 插件入口：`main.py`。
+- 页面请求与解析逻辑：`sf6_profile.py`。
+- 用户配置：`_conf_schema.json`。
+- 插件元数据：`metadata.yaml`。
 
-## 3) Source of Truth
-- AstrBot behavior and plugin APIs are defined by docs under `sdk-docs/`.
-- Read these first when changing plugin behavior:
-  - `sdk-docs/star/plugin-new.md`
-  - `sdk-docs/star/guides/simple.md`
-  - `sdk-docs/star/guides/listen-message-event.md`
-  - `sdk-docs/star/guides/storage.md`
-  - `sdk-docs/star/guides/plugin-config.md`
-- If generic Python advice conflicts with AstrBot docs, follow `sdk-docs/`.
+## 当前功能
 
-## 4) Repository Layout
-- `main.py`: AstrBot entrypoint and command handlers.
-- `sf6_profile.py`: HTTP client + HTML/JSON extraction and normalization.
-- `get_player_profile.py`: standalone CLI for manual profile fetching.
-- `metadata.yaml`: plugin metadata/version.
-- `example.html`: captured profile HTML sample for parser validation.
-- `sdk-docs/`: local docs mirror.
-- There is currently no committed `tests/` directory.
+- `/绑定 <player_id>`：绑定当前聊天用户与 SF6 玩家 ID。
+- `/查询 <player_id>`：查询指定玩家 ID。
+- `/查询`：查询当前用户已绑定的玩家 ID。
 
-## 5) Build, Lint, and Test Commands
-No enforced task runner exists yet; use commands below.
+查询结果包括玩家 ID、玩家名、段位、常用角色、常用角色段位、MR、总时长、排位赛时长、休闲赛时长、比赛间时长和排位对局场次。
 
-### Environment setup
-- `python -m venv .venv`
-- `source .venv/bin/activate`
-- `pip install -r requirements.txt` (only when file exists)
-- `pip install ruff pytest httpx`
+## 发布文件
 
-### Formatting and lint
-- `ruff format .`
-- `ruff check .`
-- Optional autofix: `ruff check . --fix`
+仓库应保持为可发布插件包，只保留运行和发布必需文件：
 
-### Tests
-- Full suite: `pytest -q`
-- Single file: `pytest tests/test_parser.py -q`
-- Single test function: `pytest tests/test_parser.py::test_extract_next_data -q`
-- Single test method in class: `pytest tests/test_service_client.py::TestSF6ProfileClient::test_auth_error -q`
-- Run by keyword: `pytest -q -k next_data`
+- `main.py`
+- `sf6_profile.py`
+- `_conf_schema.json`
+- `metadata.yaml`
+- `requirements.txt`
+- `README.md`
+- `LICENSE`
+- `.gitignore`
+- `AGENTS.md`
 
-### Sanity checks (when tests are absent)
-- Syntax check: `python -m compileall .`
-- Manual CLI check:
-  - `python get_player_profile.py <player_id> --cookie "$SF6_COOKIE" --json`
-- Manual plugin check:
-  - reload plugin in AstrBot WebUI, then run the query command.
+不要提交本地缓存、抓包样例、调试脚本、虚拟环境、SDK 文档镜像或临时输出。
 
-## 6) AstrBot Development Rules
-- Plugin class must inherit from `Star`.
-- Register plugin via `@register(...)` in `main.py`.
-- Keep handler signatures as `self, event, ...` with `AstrMessageEvent` typing.
-- Use decorators from `astrbot.api.event.filter` for commands/listeners.
-- Prefer async handlers and async IO.
-- Do not use `requests`; use `httpx` or `aiohttp`.
-- Use `from astrbot.api import logger` for logs.
-- Persist small key-value state with AstrBot storage APIs.
-- Store large artifacts under `data/plugin_data/{plugin_name}/`, not source dirs.
+## AstrBot 开发规则
 
-## 7) Parser and HTTP Guidance (SF6)
-- Prefer extracting `__NEXT_DATA__` JSON first; use regex/text fallback only when needed.
-- Use `example.html` to validate extraction rules before changing parsing behavior.
-- Keep parsing tolerant to missing keys and nested structure shifts.
-- Normalize missing/empty values to a stable sentinel (currently `"N/A"`).
-- Validate response status codes and anti-bot/error pages before parsing HTML.
-- Always set request timeout and explicit headers in network calls.
+- 插件类必须继承 `Star`。
+- 在 `main.py` 中使用 `@register(...)` 注册插件。
+- 指令处理函数保持 `self, event, ...` 形式，并使用 `AstrMessageEvent` 类型标注。
+- 指令和事件监听使用 `astrbot.api.event.filter` 中的装饰器。
+- 优先使用异步处理和异步 IO。
+- 不使用 `requests`；网络请求使用 `httpx` 或 `aiohttp`。
+- 日志使用 `from astrbot.api import logger`。
+- 少量键值状态使用 AstrBot 存储 API。
+- 大型运行时产物应放入 `data/plugin_data/{plugin_name}/`，不要写入源码目录。
 
-## 8) Code Style Guidelines
+## 解析与请求规则
 
-### Imports
-- Order import groups as: standard library, third-party, local modules.
-- Keep one import per logical unit; avoid wildcard imports.
-- Remove dead imports promptly.
+- 优先解析 Buckler 页面中的 `__NEXT_DATA__` JSON。
+- 页面结构变化时再使用 JSON 脚本或文本模式兜底。
+- 解析逻辑要容忍缺失字段和嵌套结构变化。
+- 空值统一显示为 `N/A`。
+- 网络请求必须设置超时和明确请求头。
+- 处理 401、403、404、5xx 和反爬页面，不要把底层异常直接暴露给用户。
+- 日志中不要泄露 Cookie。
 
-### Formatting
-- Follow PEP 8 and rely on `ruff format` for consistency.
-- Use 4-space indentation and keep lines readable.
-- Keep handlers thin; move business logic into helper modules/classes.
-- Add docstrings only for non-obvious public behavior.
+## 代码风格
 
-### Types
-- Add type hints to public functions, methods, and return values.
-- Prefer concrete types: `dict[str, str]`, `list[Any]`, `PlayerProfileStats`.
-- Avoid broad `Any` unless interacting with unknown JSON payloads.
+- 导入顺序：标准库、第三方库、本地模块。
+- 保持类型标注，公共函数和方法需要标明返回值。
+- 业务逻辑放在辅助类或函数中，指令处理保持轻量。
+- 捕获异常时先捕获具体异常，最后才使用兜底异常处理。
+- 非必要不新增抽象，不做无关重构。
+- 默认使用 ASCII 编辑代码；中文文档和用户提示可以使用中文。
 
-### Naming
-- Classes: `PascalCase`.
-- Functions/methods/variables: `snake_case`.
-- Constants: `UPPER_SNAKE_CASE`.
-- Keep command names stable and user-oriented.
-- File names should remain lowercase with underscores.
+## 常用命令
 
-### Error handling
-- Never let unhandled exceptions break command flow.
-- Raise/propagate domain-specific exceptions (`SF6AuthError`, `SF6ParseError`, etc.).
-- Catch specific exceptions first; keep broad `except Exception` as a last guard.
-- Return user-friendly failure messages from handlers.
-- Log internal details for debugging, but avoid leaking sensitive cookie values.
+安装开发依赖：
 
-### Async and concurrency
-- Use async-native libraries only.
-- Avoid blocking calls inside async handlers.
-- If adding concurrency (`asyncio.gather`), handle partial failures explicitly.
+```bash
+pip install ruff pytest httpx
+```
 
-## 9) Testing Expectations for New Work
-- Add tests for parsing logic whenever parser rules change.
-- Add regression tests for any bug fixes.
-- Mock HTTP requests for deterministic tests.
-- Suggested future test files:
-  - `tests/test_parser.py`
-  - `tests/test_service_client.py`
-  - `tests/test_commands.py`
+格式化和静态检查：
 
-## 10) Metadata and Versioning
-- Keep `metadata.yaml` aligned with behavior changes.
-- Keep plugin `name` prefixed with `astrbot_plugin_`.
-- Bump version when user-visible behavior changes.
-- Keep `display_name`, `desc`, `author`, and `repo` accurate.
+```bash
+ruff format .
+ruff check .
+```
 
-## 11) Git and Change Hygiene
-- Keep edits scoped to the requested task.
-- Do not revert unrelated working tree changes.
-- Avoid destructive git operations unless explicitly requested.
-- In commit/PR text, explain behavior impact, not only file diffs.
+基础语法校验：
 
-## 12) Cursor/Copilot Rules Check
-- `.cursor/rules/`: not present.
-- `.cursorrules`: not present.
-- `.github/copilot-instructions.md`: not present.
-- This `AGENTS.md` is the active instruction file for coding agents.
+```bash
+python -m compileall .
+```
 
-## 13) Practical Defaults for Agents
-- Before finishing code edits: run `ruff format . && ruff check .`.
-- If tests exist, run targeted tests first, then full `pytest -q` when feasible.
-- If tests do not exist, run `python -m compileall .` and at least one manual verification path.
-- For parser updates, verify against `example.html` and one live-response sample if available.
+当前仓库没有提交测试目录。若后续修改解析逻辑，应新增针对 `sf6_profile.py` 的回归测试，并使用 Mock HTTP 保持测试稳定。
+
+## 版本与元数据
+
+- `metadata.yaml` 中的 `name` 保持 `astrbot_plugin_` 前缀。
+- 用户可见行为变化时同步更新 `version`。
+- `display_name`、`desc`、`author`、`repo` 应保持准确。
+- README 的功能说明必须与 `main.py` 中的实际指令一致。
+
+## Git 卫生
+
+- 编辑范围保持聚焦。
+- 不回滚无关改动。
+- 不提交缓存、构建产物或本地环境文件。
+- 提交说明应描述行为影响，而不只是文件差异。

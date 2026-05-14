@@ -1,20 +1,20 @@
 {
   "sf6_cookie": {
     "type": "text",
-    "description": "Street Fighter 6 Buckler cookie string used for authenticated profile scraping.",
-    "hint": "Paste full browser Cookie header value from streetfighter.com after login.",
+    "description": "用于访问 Street Fighter 6 Buckler 玩家页面的 Cookie。",
+    "hint": "登录 streetfighter.com 后，从浏览器开发者工具中复制完整的 Cookie 请求头内容。",
     "obvious_hint": true,
     "default": ""
   },
   "user_agent": {
     "type": "string",
-    "description": "Optional custom User-Agent header.",
-    "hint": "Leave empty to use built-in browser-like User-Agent.",
+    "description": "可选的自定义 User-Agent 请求头。",
+    "hint": "通常保持为空即可，插件会使用内置的浏览器 User-Agent。",
     "default": ""
   },
   "request_timeout_seconds": {
     "type": "int",
-    "description": "HTTP request timeout in seconds.",
+    "description": "请求 Buckler 页面时的超时时间，单位为秒。",
     "default": 20
   }
 }
