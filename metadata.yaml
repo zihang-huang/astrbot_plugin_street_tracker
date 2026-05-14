@@ -2,7 +2,7 @@ name: astrbot_plugin_street_tracker
 display_name: 街霸 6 玩家查询
 desc: 通过 Buckler 查询 Street Fighter 6 玩家档案与对战统计
 version: v1.4.0
-author: zihang-huang
+author: Zihang Huang
 repo: https://github.com/zihang-huang/astrbot_plugin_street_tracker
 keywords:
   - game
