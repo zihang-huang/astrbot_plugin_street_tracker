@@ -1,6 +1,7 @@
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
+from astrbot.core.star.filter.command import GreedyStr
 
 from .sf6_profile import (
     PlayerProfileStats,
@@ -16,7 +17,7 @@ from .sf6_profile import (
     "astrbot_plugin_street_tracker",
     "二猫姥爷",
     "Street Fighter 6 玩家信息查询",
-    "1.5.2",
+    "1.5.3",
 )
 class StreetTrackerPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
@@ -113,25 +114,25 @@ class StreetTrackerPlugin(Star):
             logger.exception("Failed to stop AstrBot event propagation")
 
     @staticmethod
-    def _extract_command_argument(event: AstrMessageEvent, command_name: str) -> str:
-        message = str(getattr(event, "message_str", "")).strip()
-        if message.startswith("/"):
-            message = message[1:].lstrip()
-        if message == command_name:
-            return ""
-        if message.startswith(command_name):
-            return message[len(command_name) :].strip()
-        return ""
+    def _validate_player_id(player_id: str) -> str | None:
+        if not player_id:
+            return None
+        if not player_id.isdigit():
+            return "玩家 ID 格式不正确，请输入纯数字 player_id。"
+        return None
 
     @filter.command("绑定")
-    async def bind_profile(self, event: AstrMessageEvent):
+    async def bind_profile(self, event: AstrMessageEvent, raw_args: GreedyStr):
         """绑定当前用户与 Street Fighter 6 玩家 ID。"""
         player_id = ""
         self._stop_event(event)
         try:
-            player_id = self._extract_command_argument(event, "绑定")
+            player_id = str(raw_args).strip()
             if not player_id:
                 yield event.plain_result("用法: /绑定 <player_id>")
+                return
+            if error_message := self._validate_player_id(player_id):
+                yield event.plain_result(self._safe_error_reply("绑定", error_message))
                 return
 
             stats, error_message = await self._fetch_profile_stats(player_id)
@@ -165,12 +166,12 @@ class StreetTrackerPlugin(Star):
             yield event.plain_result(self._internal_error_reply("绑定"))
 
     @filter.command("查询")
-    async def query_profile(self, event: AstrMessageEvent):
+    async def query_profile(self, event: AstrMessageEvent, raw_args: GreedyStr):
         """根据玩家 ID 查询 Street Fighter 6 档案数据。"""
         player_id = ""
         self._stop_event(event)
         try:
-            player_id = self._extract_command_argument(event, "查询")
+            player_id = str(raw_args).strip()
             if not player_id:
                 sender_id = str(event.get_sender_id()).strip()
                 player_id = str(
@@ -181,6 +182,9 @@ class StreetTrackerPlugin(Star):
                         "用法: /查询 <player_id> 或先使用 /绑定 <player_id>"
                     )
                     return
+            if error_message := self._validate_player_id(player_id):
+                yield event.plain_result(self._safe_error_reply("查询", error_message))
+                return
 
             stats, error_message = await self._fetch_profile_stats(player_id)
             if error_message is not None or stats is None:
