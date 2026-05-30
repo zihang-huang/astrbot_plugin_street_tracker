@@ -16,7 +16,7 @@ from .sf6_profile import (
     "astrbot_plugin_street_tracker",
     "二猫姥爷",
     "Street Fighter 6 玩家信息查询",
-    "1.5.1",
+    "1.5.2",
 )
 class StreetTrackerPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
@@ -105,11 +105,31 @@ class StreetTrackerPlugin(Star):
     def _internal_error_reply(action: str) -> str:
         return f"{action}失败: 插件内部处理异常，请稍后重试。"
 
-    @filter.command("绑定")
-    async def bind_profile(self, event: AstrMessageEvent, player_id: str = ""):
-        """绑定当前用户与 Street Fighter 6 玩家 ID。"""
+    @staticmethod
+    def _stop_event(event: AstrMessageEvent) -> None:
         try:
-            player_id = player_id.strip()
+            event.stop_event()
+        except Exception:
+            logger.exception("Failed to stop AstrBot event propagation")
+
+    @staticmethod
+    def _extract_command_argument(event: AstrMessageEvent, command_name: str) -> str:
+        message = str(getattr(event, "message_str", "")).strip()
+        if message.startswith("/"):
+            message = message[1:].lstrip()
+        if message == command_name:
+            return ""
+        if message.startswith(command_name):
+            return message[len(command_name) :].strip()
+        return ""
+
+    @filter.command("绑定")
+    async def bind_profile(self, event: AstrMessageEvent):
+        """绑定当前用户与 Street Fighter 6 玩家 ID。"""
+        player_id = ""
+        self._stop_event(event)
+        try:
+            player_id = self._extract_command_argument(event, "绑定")
             if not player_id:
                 yield event.plain_result("用法: /绑定 <player_id>")
                 return
@@ -125,7 +145,11 @@ class StreetTrackerPlugin(Star):
                 ):
                     yield event.plain_result("绑定失败，请确认玩家 ID 是否正确。")
                 else:
-                    yield event.plain_result(self._safe_error_reply("绑定", error_message or "发生未知错误"))
+                    yield event.plain_result(
+                        self._safe_error_reply(
+                            "绑定", error_message or "发生未知错误"
+                        )
+                    )
                 return
 
             sender_id = str(event.get_sender_id()).strip()
@@ -135,14 +159,18 @@ class StreetTrackerPlugin(Star):
                 f"{self._format_profile_stats(stats)}"
             )
         except Exception:
-            logger.exception(f"Unhandled error while handling /绑定 for player {player_id}")
+            logger.exception(
+                f"Unhandled error while handling /绑定 for player {player_id}"
+            )
             yield event.plain_result(self._internal_error_reply("绑定"))
 
     @filter.command("查询")
-    async def query_profile(self, event: AstrMessageEvent, player_id: str = ""):
+    async def query_profile(self, event: AstrMessageEvent):
         """根据玩家 ID 查询 Street Fighter 6 档案数据。"""
+        player_id = ""
+        self._stop_event(event)
         try:
-            player_id = player_id.strip()
+            player_id = self._extract_command_argument(event, "查询")
             if not player_id:
                 sender_id = str(event.get_sender_id()).strip()
                 player_id = str(
@@ -156,10 +184,14 @@ class StreetTrackerPlugin(Star):
 
             stats, error_message = await self._fetch_profile_stats(player_id)
             if error_message is not None or stats is None:
-                yield event.plain_result(self._safe_error_reply("查询", error_message or "发生未知错误"))
+                yield event.plain_result(
+                    self._safe_error_reply("查询", error_message or "发生未知错误")
+                )
                 return
 
             yield event.plain_result(self._format_profile_stats(stats))
         except Exception:
-            logger.exception(f"Unhandled error while handling /查询 for player {player_id}")
+            logger.exception(
+                f"Unhandled error while handling /查询 for player {player_id}"
+            )
             yield event.plain_result(self._internal_error_reply("查询"))
