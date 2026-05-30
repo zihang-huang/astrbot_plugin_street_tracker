@@ -52,6 +52,10 @@ class SF6AuthError(SF6ClientError):
     """Raised when cookie is missing, expired, or invalid."""
 
 
+class SF6ProfileNotFoundError(SF6ClientError):
+    """Raised when the requested player profile does not exist."""
+
+
 class SF6ParseError(SF6ClientError):
     """Raised when profile page structure cannot be parsed."""
 
@@ -121,7 +125,7 @@ class SF6ProfileClient:
                 f"request blocked or unauthorized: {response.status_code}"
             )
         if response.status_code == 404:
-            raise SF6ClientError("player profile not found")
+            raise SF6ProfileNotFoundError("player profile not found")
         if response.status_code >= 500:
             raise SF6ClientError(f"upstream server error: {response.status_code}")
 

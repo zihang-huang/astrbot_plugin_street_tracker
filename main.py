@@ -2,14 +2,21 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
-from .sf6_profile import SF6AuthError, SF6ClientError, SF6ParseError, SF6ProfileClient
+from .sf6_profile import (
+    PlayerProfileStats,
+    SF6AuthError,
+    SF6ClientError,
+    SF6ParseError,
+    SF6ProfileClient,
+    SF6ProfileNotFoundError,
+)
 
 
 @register(
     "astrbot_plugin_street_tracker",
     "二猫姥爷",
     "Street Fighter 6 玩家信息查询",
-    "1.4.0",
+    "1.5.0",
 )
 class StreetTrackerPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
@@ -20,6 +27,64 @@ class StreetTrackerPlugin(Star):
     def _binding_key(sender_id: str) -> str:
         return f"binding:{sender_id}"
 
+    def _build_profile_client(self) -> tuple[SF6ProfileClient | None, str | None]:
+        cookie = str(self.config.get("sf6_cookie", "")).strip()
+        if not cookie:
+            return None, "未配置 SF6 Cookie，请在插件配置中填写 sf6_cookie。"
+
+        timeout_seconds = int(self.config.get("request_timeout_seconds", 20) or 20)
+        user_agent = str(self.config.get("user_agent", "")).strip() or None
+        return (
+            SF6ProfileClient(
+                cookie=cookie,
+                user_agent=user_agent,
+                timeout_seconds=timeout_seconds,
+            ),
+            None,
+        )
+
+    @staticmethod
+    def _format_profile_stats(stats: PlayerProfileStats) -> str:
+        lines = [
+            "🎮 Street Fighter 6 玩家信息",
+            f"🆔 玩家ID: {stats.player_id}",
+            f"👤 玩家名: {stats.player_name}",
+            f"🏆 段位: {stats.rank}",
+            f"🕹️ 常用角色: {stats.favorite_character}",
+            f"📈 常用角色段位: {stats.favorite_character_rank}",
+            f"💠 大师分MR: {stats.mr}",
+            f"⌛ 总时长: {stats.total_play_time}",
+            f"🎯 排位赛时长: {stats.play_time}",
+            f"😎 休闲赛时长: {stats.casual_play_time}",
+            f"🏠 比赛间时长: {stats.room_time}",
+            f"⚔️ 排位对局场次: {stats.match_count}",
+        ]
+        return "\n".join(lines)
+
+    async def _fetch_profile_stats(
+        self, player_id: str
+    ) -> tuple[PlayerProfileStats | None, str | None]:
+        client, error_message = self._build_profile_client()
+        if error_message is not None:
+            return None, error_message
+        if client is None:
+            return None, "查询失败: 发生未知错误。"
+
+        try:
+            return await client.fetch_player_profile_stats(player_id), None
+        except SF6AuthError:
+            return None, "Cookie 无效或已过期，请更新插件配置中的 sf6_cookie。"
+        except SF6ProfileNotFoundError:
+            return None, "玩家 ID 不存在，请确认输入是否正确。"
+        except SF6ParseError:
+            return None, "已拿到页面，但暂时无法解析该玩家数据。"
+        except SF6ClientError as exc:
+            logger.warning(f"SF6 query failed for player {player_id}: {exc}")
+            return None, f"查询失败: {exc}"
+        except Exception:
+            logger.exception("Unexpected error while querying SF6 profile")
+            return None, "查询失败: 发生未知错误。"
+
     @filter.command("绑定")
     async def bind_profile(self, event: AstrMessageEvent, player_id: str = ""):
         """绑定当前用户与 Street Fighter 6 玩家 ID。"""
@@ -28,10 +93,25 @@ class StreetTrackerPlugin(Star):
             yield event.plain_result("用法: /绑定 <player_id>")
             return
 
+        stats, error_message = await self._fetch_profile_stats(player_id)
+        if error_message is not None or stats is None:
+            logger.info(
+                f"SF6 bind validation failed for player {player_id}: {error_message}"
+            )
+            if error_message in (
+                "玩家 ID 不存在，请确认输入是否正确。",
+                "已拿到页面，但暂时无法解析该玩家数据。",
+            ):
+                yield event.plain_result("绑定失败，请确认玩家 ID 是否正确。")
+            else:
+                yield event.plain_result(f"绑定失败: {error_message}")
+            return
+
         sender_id = str(event.get_sender_id()).strip()
         await self.put_kv_data(self._binding_key(sender_id), player_id)
         yield event.plain_result(
-            f"绑定成功，你可以直接使用 /查询 查看玩家 {player_id} 的信息。"
+            "绑定成功，你可以直接使用 /查询 查看该玩家信息。\n\n"
+            f"{self._format_profile_stats(stats)}"
         )
 
     @filter.command("查询")
@@ -49,53 +129,9 @@ class StreetTrackerPlugin(Star):
                 )
                 return
 
-        cookie = str(self.config.get("sf6_cookie", "")).strip()
-        if not cookie:
-            yield event.plain_result(
-                "未配置 SF6 Cookie，请在插件配置中填写 sf6_cookie。"
-            )
+        stats, error_message = await self._fetch_profile_stats(player_id)
+        if error_message is not None or stats is None:
+            yield event.plain_result(error_message or "查询失败: 发生未知错误。")
             return
 
-        timeout_seconds = int(self.config.get("request_timeout_seconds", 20) or 20)
-        user_agent = str(self.config.get("user_agent", "")).strip() or None
-
-        client = SF6ProfileClient(
-            cookie=cookie,
-            user_agent=user_agent,
-            timeout_seconds=timeout_seconds,
-        )
-
-        try:
-            stats = await client.fetch_player_profile_stats(player_id)
-        except SF6AuthError:
-            yield event.plain_result(
-                "Cookie 无效或已过期，请更新插件配置中的 sf6_cookie。"
-            )
-            return
-        except SF6ParseError:
-            yield event.plain_result("已拿到页面，但暂时无法解析该玩家数据。")
-            return
-        except SF6ClientError as exc:
-            logger.warning(f"SF6 query failed for player {player_id}: {exc}")
-            yield event.plain_result(f"查询失败: {exc}")
-            return
-        except Exception:
-            logger.exception("Unexpected error while querying SF6 profile")
-            yield event.plain_result("查询失败: 发生未知错误。")
-            return
-
-        lines = [
-            "🎮 Street Fighter 6 玩家信息",
-            f"🆔 玩家ID: {stats.player_id}",
-            f"👤 玩家名: {stats.player_name}",
-            f"🏆 段位: {stats.rank}",
-            f"🕹️ 常用角色: {stats.favorite_character}",
-            f"📈 常用角色段位: {stats.favorite_character_rank}",
-            f"💠 大师分MR: {stats.mr}",
-            f"⌛ 总时长: {stats.total_play_time}",
-            f"🎯 排位赛时长: {stats.play_time}",
-            f"😎 休闲赛时长: {stats.casual_play_time}",
-            f"🏠 比赛间时长: {stats.room_time}",
-            f"⚔️ 排位对局场次: {stats.match_count}",
-        ]
-        yield event.plain_result("\n".join(lines))
+        yield event.plain_result(self._format_profile_stats(stats))
