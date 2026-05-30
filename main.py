@@ -12,12 +12,14 @@ from .sf6_profile import (
     SF6ProfileNotFoundError,
 )
 
+MAX_PLAYER_ID_LENGTH = 20
+
 
 @register(
     "astrbot_plugin_street_tracker",
     "二猫姥爷",
     "Street Fighter 6 玩家信息查询",
-    "1.5.3",
+    "1.5.4",
 )
 class StreetTrackerPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
@@ -119,6 +121,8 @@ class StreetTrackerPlugin(Star):
             return None
         if not player_id.isdigit():
             return "玩家 ID 格式不正确，请输入纯数字 player_id。"
+        if len(player_id) > MAX_PLAYER_ID_LENGTH:
+            return f"玩家 ID 过长，请输入不超过 {MAX_PLAYER_ID_LENGTH} 位的 player_id。"
         return None
 
     @filter.command("绑定")
